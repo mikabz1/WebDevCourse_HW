@@ -32,3 +32,16 @@ img {
     width: 120px;
     border-radius: 5px;
 }
+
+.titles{
+    background: blue;
+    color: white;
+}
+
+.line_with_color{
+    background: #0078d7;
+    font-size: larger;
+    color: darkblue;
+    font-style: bold;
+    
+}
