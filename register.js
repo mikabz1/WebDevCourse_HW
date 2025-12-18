@@ -1,5 +1,5 @@
 
-const API_BASE_URL = 'http://localhost:3000/api';
+const USERS_STORAGE_KEY = 'users';
 
 // Get form and input elements
 const form = document.getElementById('registerForm');
@@ -34,22 +34,21 @@ function isValidUrl(string) {
     }
 }
 
-// Check if username exists via API
-async function usernameExists(username) {
-    try {
-        const response = await fetch(`${API_BASE_URL}/check-username/${encodeURIComponent(username)}`, {
-            credentials: 'include'
-        });
+// Get users from localStorage
+function getUsers() {
+    const usersData = localStorage.getItem(USERS_STORAGE_KEY);
+    return usersData ? JSON.parse(usersData) : [];
+}
 
-        if (response.ok) {
-            const data = await response.json();
-            return data.exists;
-        }
-        return false;
-    } catch (error) {
-        console.error('Username check error:', error);
-        return false;
-    }
+// Save users to localStorage
+function saveUsers(users) {
+    localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(users));
+}
+
+// Check if username exists
+function usernameExists(username) {
+    const users = getUsers();
+    return users.some(u => u.username.toLowerCase() === username.toLowerCase());
 }
 
 // Validate password strength
@@ -90,7 +89,7 @@ function validatePassword(password) {
 }
 
 // Validate form field
-async function validateField(field, validator) {
+function validateField(field, validator) {
     const value = field.value.trim();
     const feedbackElement = document.getElementById(field.id + 'Feedback');
     
@@ -104,7 +103,7 @@ async function validateField(field, validator) {
 
     // Run custom validator if provided
     if (validator) {
-        const result = await validator(value);
+        const result = validator(value);
         if (!result.valid) {
             field.classList.add('is-invalid');
             field.classList.remove('is-valid');
@@ -121,13 +120,12 @@ async function validateField(field, validator) {
 }
 
 // Validate username
-async function validateUsername(value) {
+function validateUsername(value) {
     if (!value) {
         return { valid: false, message: 'שדה זה חובה' };
     }
     
-    const exists = await usernameExists(value);
-    if (exists) {
+    if (usernameExists(value)) {
         return { valid: false, message: 'שם המשתמש כבר קיים במערכת' };
     }
     
@@ -161,79 +159,74 @@ function validateImageUrl(value) {
 }
 
 // Real-time validation
-usernameInput.addEventListener('blur', async () => {
-    await validateField(usernameInput, validateUsername);
+usernameInput.addEventListener('blur', () => {
+    validateField(usernameInput, validateUsername);
 });
 
-passwordInput.addEventListener('blur', async () => {
-    await validateField(passwordInput, validatePassword);
+passwordInput.addEventListener('blur', () => {
+    validateField(passwordInput, validatePassword);
 });
 
-confirmPasswordInput.addEventListener('input', async () => {
+confirmPasswordInput.addEventListener('input', () => {
     if (passwordInput.value) {
-        await validateField(confirmPasswordInput, validatePasswordConfirmation);
+        validateField(confirmPasswordInput, validatePasswordConfirmation);
     }
 });
 
-confirmPasswordInput.addEventListener('blur', async () => {
-    await validateField(confirmPasswordInput, validatePasswordConfirmation);
+confirmPasswordInput.addEventListener('blur', () => {
+    validateField(confirmPasswordInput, validatePasswordConfirmation);
 });
 
-firstNameInput.addEventListener('blur', async () => {
-    await validateField(firstNameInput);
+firstNameInput.addEventListener('blur', () => {
+    validateField(firstNameInput);
 });
 
-imageUrlInput.addEventListener('blur', async () => {
-    await validateField(imageUrlInput, validateImageUrl);
+imageUrlInput.addEventListener('blur', () => {
+    validateField(imageUrlInput, validateImageUrl);
 });
 
 // Form submission
-form.addEventListener('submit', async function(e) {
+form.addEventListener('submit', function(e) {
     e.preventDefault();
     e.stopPropagation();
 
     // Validate all fields
-    const isUsernameValid = await validateField(usernameInput, validateUsername);
-    const isPasswordValid = await validateField(passwordInput, validatePassword);
-    const isConfirmPasswordValid = await validateField(confirmPasswordInput, validatePasswordConfirmation);
-    const isFirstNameValid = await validateField(firstNameInput);
-    const isImageUrlValid = await validateField(imageUrlInput, validateImageUrl);
+    const isUsernameValid = validateField(usernameInput, validateUsername);
+    const isPasswordValid = validateField(passwordInput, validatePassword);
+    const isConfirmPasswordValid = validateField(confirmPasswordInput, validatePasswordConfirmation);
+    const isFirstNameValid = validateField(firstNameInput);
+    const isImageUrlValid = validateField(imageUrlInput, validateImageUrl);
 
     // Check if all fields are valid
     if (isUsernameValid && isPasswordValid && isConfirmPasswordValid && isFirstNameValid && isImageUrlValid) {
-        try {
-            // Register user via API
-            const response = await fetch(`${API_BASE_URL}/register`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                credentials: 'include',
-                body: JSON.stringify({
-                    username: usernameInput.value.trim(),
-                    password: passwordInput.value,
-                    firstName: firstNameInput.value.trim(),
-                    imageUrl: imageUrlInput.value.trim()
-                })
-            });
-
-            if (response.ok) {
-                // Show success message
-                alert('ההרשמה בוצעה בהצלחה! מעביר לדף ההתחברות...');
-
-                // Redirect to login page
-                window.location.href = 'login.html';
-            } else {
-                const error = await response.json();
-                alert('שגיאה בהרשמה: ' + (error.error || 'שגיאה לא ידועה'));
-            }
-        } catch (error) {
-            console.error('Register error:', error);
-            alert('שגיאה בחיבור לשרת');
+        const users = getUsers();
+        
+        // Double check username doesn't exist
+        if (usernameExists(usernameInput.value.trim())) {
+            alert('שם המשתמש כבר קיים במערכת');
+            return;
         }
+        
+        // Create new user
+        const newUser = {
+            id: Date.now(),
+            username: usernameInput.value.trim(),
+            password: passwordInput.value,
+            firstName: firstNameInput.value.trim(),
+            imageUrl: imageUrlInput.value.trim(),
+            registrationDate: new Date().toISOString()
+        };
+        
+        users.push(newUser);
+        saveUsers(users);
+        
+        // Show success message
+        alert('ההרשמה בוצעה בהצלחה! מעביר לדף ההתחברות...');
+
+        // Redirect to login page
+        window.location.href = 'login.html';
     } else {
         // Mark form as validated to show all error messages
         form.classList.add('was-validated');
     }
 });
-

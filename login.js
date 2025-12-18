@@ -1,5 +1,5 @@
 
-const API_BASE_URL = 'http://localhost:3000/api';
+const USERS_STORAGE_KEY = 'users';
 const SESSION_KEY = 'currentUser';
 
 // Get form and input elements
@@ -7,32 +7,42 @@ const form = document.getElementById('loginForm');
 const usernameInput = document.getElementById('username');
 const passwordInput = document.getElementById('password');
 
-// Login as demo user
-async function loginAsDemo() {
-    try {
-        const response = await fetch(`${API_BASE_URL}/login`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            credentials: 'include',
-            body: JSON.stringify({
-                username: 'demo',
-                password: 'demo123'
-            })
-        });
+// Get users from localStorage
+function getUsers() {
+    const usersData = localStorage.getItem(USERS_STORAGE_KEY);
+    if (!usersData) {
+        // Initialize with demo user if no users exist
+        const demoUser = {
+            id: Date.now(),
+            username: 'demo',
+            password: 'demo123',
+            firstName: 'משתמש',
+            imageUrl: 'https://via.placeholder.com/150/667eea/ffffff?text=Demo',
+            registrationDate: new Date().toISOString()
+        };
+        const users = [demoUser];
+        localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(users));
+        return users;
+    }
+    return JSON.parse(usersData);
+}
 
-        if (response.ok) {
-            const user = await response.json();
-            saveCurrentUser(user);
-            alert('התחברת כמשתמש דמו בהצלחה! מעביר לדף החיפוש...');
-            window.location.href = 'search.html';
-        } else {
-            const error = await response.json();
-            alert('שגיאה בהתחברות כמשתמש דמו: ' + (error.error || 'שגיאה לא ידועה'));
-        }
-    } catch (error) {
-        console.error('Login error:', error);
+// Save current user to sessionStorage
+function saveCurrentUser(user) {
+    sessionStorage.setItem(SESSION_KEY, JSON.stringify(user));
+}
+
+// Login as demo user
+function loginAsDemo() {
+    const users = getUsers();
+    const demoUser = users.find(u => u.username.toLowerCase() === 'demo');
+    
+    if (demoUser && demoUser.password === 'demo123') {
+        const { password, ...userWithoutPassword } = demoUser;
+        saveCurrentUser(userWithoutPassword);
+        alert('התחברת כמשתמש דמו בהצלחה! מעביר לדף החיפוש...');
+        window.location.href = 'search.html';
+    } else {
         alert('שגיאה בהתחברות כמשתמש דמו');
     }
 }
@@ -40,43 +50,30 @@ async function loginAsDemo() {
 // Make function globally available
 window.loginAsDemo = loginAsDemo;
 
-// Save current user to sessionStorage
-function saveCurrentUser(user) {
-    sessionStorage.setItem(SESSION_KEY, JSON.stringify(user));
-}
-
-// Login via API
-async function login(username, password) {
-    try {
-        const response = await fetch(`${API_BASE_URL}/login`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            credentials: 'include',
-            body: JSON.stringify({ username, password })
-        });
-
-        if (response.ok) {
-            const user = await response.json();
-            return {
-                valid: true,
-                user: user
-            };
-        } else {
-            const error = await response.json();
-            return {
-                valid: false,
-                message: error.error || 'שם המשתמש או הסיסמה שגויים'
-            };
-        }
-    } catch (error) {
-        console.error('Login error:', error);
+// Login function
+function login(username, password) {
+    const users = getUsers();
+    const user = users.find(u => u.username.toLowerCase() === username.toLowerCase());
+    
+    if (!user) {
         return {
             valid: false,
-            message: 'שגיאה בחיבור לשרת'
+            message: 'שם המשתמש או הסיסמה שגויים'
         };
     }
+    
+    if (user.password !== password) {
+        return {
+            valid: false,
+            message: 'שם המשתמש או הסיסמה שגויים'
+        };
+    }
+    
+    const { password: _, ...userWithoutPassword } = user;
+    return {
+        valid: true,
+        user: userWithoutPassword
+    };
 }
 
 // Validate field
@@ -120,24 +117,22 @@ form.addEventListener('submit', function(e) {
         return;
     }
 
-    // Login via API
-    login(username, password).then(validationResult => {
-        if (validationResult.valid) {
-            // Save user to sessionStorage
-            saveCurrentUser(validationResult.user);
+    // Login
+    const validationResult = login(username, password);
+    if (validationResult.valid) {
+        // Save user to sessionStorage
+        saveCurrentUser(validationResult.user);
 
-            // Show success message
-            alert('התחברת בהצלחה! מעביר לדף החיפוש...');
+        // Show success message
+        alert('התחברת בהצלחה! מעביר לדף החיפוש...');
 
-            // Redirect to search page
-            window.location.href = 'search.html';
-        } else {
-            // Show error message
-            usernameInput.classList.add('is-invalid');
-            passwordInput.classList.add('is-invalid');
-            document.getElementById('usernameFeedback').textContent = validationResult.message;
-            document.getElementById('passwordFeedback').textContent = validationResult.message;
-        }
-    });
+        // Redirect to search page
+        window.location.href = 'search.html';
+    } else {
+        // Show error message
+        usernameInput.classList.add('is-invalid');
+        passwordInput.classList.add('is-invalid');
+        document.getElementById('usernameFeedback').textContent = validationResult.message;
+        document.getElementById('passwordFeedback').textContent = validationResult.message;
+    }
 });
-

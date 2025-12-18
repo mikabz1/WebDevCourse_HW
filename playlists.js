@@ -1,5 +1,5 @@
 
-// API_BASE_URL is defined in user-header.js
+const PLAYLISTS_STORAGE_KEY = 'playlists';
 let currentPlaylistId = null;
 let currentVideos = [];
 let sortOrder = 'name'; // 'name' or 'rating'
@@ -15,35 +15,34 @@ function getCurrentUserId() {
     return null;
 }
 
-// Get playlists from API
-async function getPlaylists() {
-    try {
-        console.log('Fetching playlists from API...');
-        const response = await fetch(`${API_BASE_URL}/playlists`, {
-            credentials: 'include'
-        });
+// Get playlists from localStorage for current user
+function getPlaylists() {
+    const userId = getCurrentUserId();
+    if (!userId) return [];
+    
+    const playlistsData = localStorage.getItem(PLAYLISTS_STORAGE_KEY);
+    if (!playlistsData) return [];
+    
+    const allPlaylists = JSON.parse(playlistsData);
+    return allPlaylists.filter(p => p.userId === userId) || [];
+}
 
-        console.log('Get playlists response status:', response.status);
-
-        if (response.ok) {
-            allPlaylists = await response.json();
-            console.log('Playlists loaded:', allPlaylists.length, allPlaylists);
-            return allPlaylists;
-        } else {
-            const error = await response.json();
-            console.error('Get playlists error:', response.status, error);
-            if (response.status === 401) {
-                alert('אנא התחבר תחילה');
-                window.location.href = 'login.html';
-            } else {
-                alert('שגיאה בטעינת הפלייליסטים: ' + (error.error || 'שגיאה לא ידועה'));
-            }
-        }
-    } catch (error) {
-        console.error('Get playlists error:', error);
-        alert('שגיאה בחיבור לשרת. ודא שהשרת רץ על http://localhost:3000');
-    }
-    return [];
+// Save playlists to localStorage
+function savePlaylists(playlists) {
+    const userId = getCurrentUserId();
+    if (!userId) return;
+    
+    // Get all playlists from storage
+    const allPlaylistsData = localStorage.getItem(PLAYLISTS_STORAGE_KEY);
+    let allPlaylists = allPlaylistsData ? JSON.parse(allPlaylistsData) : [];
+    
+    // Remove old playlists for this user
+    allPlaylists = allPlaylists.filter(p => p.userId !== userId);
+    
+    // Add updated playlists
+    allPlaylists = allPlaylists.concat(playlists);
+    
+    localStorage.setItem(PLAYLISTS_STORAGE_KEY, JSON.stringify(allPlaylists));
 }
 
 // Get playlist by ID
@@ -51,38 +50,24 @@ function getPlaylistById(playlistId) {
     return allPlaylists.find(p => p.id == playlistId);
 }
 
-// Save playlist to API
-async function savePlaylist(playlist) {
-    try {
-        const response = await fetch(`${API_BASE_URL}/playlists/${playlist.id}`, {
-            method: 'PUT',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            credentials: 'include',
-            body: JSON.stringify(playlist)
-        });
-
-        if (response.ok) {
-            const updated = await response.json();
-            const index = allPlaylists.findIndex(p => p.id === playlist.id);
-            if (index !== -1) {
-                allPlaylists[index] = updated;
-            }
-            return updated;
-        }
-    } catch (error) {
-        console.error('Save playlist error:', error);
+// Save playlist to localStorage
+function savePlaylist(playlist) {
+    const index = allPlaylists.findIndex(p => p.id === playlist.id);
+    if (index !== -1) {
+        allPlaylists[index] = playlist;
+    } else {
+        allPlaylists.push(playlist);
     }
-    return null;
+    savePlaylists(allPlaylists);
+    return playlist;
 }
 
 // Initialize page
-async function initPage() {
+function initPage() {
     console.log('Initializing playlists page...');
     
-    // Load playlists from API
-    await getPlaylists();
+    // Load playlists from localStorage
+    allPlaylists = getPlaylists();
     console.log('After getPlaylists, allPlaylists:', allPlaylists.length);
     
     // Check for playlist ID in URL query string
@@ -239,7 +224,7 @@ function displayVideos(videos) {
 }
 
 // Update video rating
-async function updateVideoRating(videoIndex, rating) {
+function updateVideoRating(videoIndex, rating) {
     const ratingValue = parseInt(rating);
     if (isNaN(ratingValue) || ratingValue < 1 || ratingValue > 10) {
         return;
@@ -249,7 +234,7 @@ async function updateVideoRating(videoIndex, rating) {
     
     if (playlist && playlist.videos && playlist.videos[videoIndex]) {
         playlist.videos[videoIndex].rating = ratingValue;
-        await savePlaylist(playlist);
+        savePlaylist(playlist);
         currentVideos = playlist.videos;
         
         // Re-sort if sorting by rating
@@ -260,7 +245,7 @@ async function updateVideoRating(videoIndex, rating) {
 }
 
 // Delete video from playlist
-async function deleteVideo(videoIndex) {
+function deleteVideo(videoIndex) {
     if (!confirm('האם אתה בטוח שברצונך למחוק את הסרטון הזה?')) {
         return;
     }
@@ -269,43 +254,32 @@ async function deleteVideo(videoIndex) {
     
     if (playlist && playlist.videos) {
         playlist.videos.splice(videoIndex, 1);
-        await savePlaylist(playlist);
+        savePlaylist(playlist);
         currentVideos = playlist.videos;
         displayVideos(currentVideos);
     }
 }
 
 // Delete entire playlist
-async function deletePlaylist(playlistId, event) {
+function deletePlaylist(playlistId, event) {
     event.stopPropagation();
     
     if (!confirm('האם אתה בטוח שברצונך למחוק את הפלייליסט הזה? כל הסרטונים יימחקו.')) {
         return;
     }
     
-    try {
-        const response = await fetch(`${API_BASE_URL}/playlists/${playlistId}`, {
-            method: 'DELETE',
-            credentials: 'include'
-        });
-
-        if (response.ok) {
-            allPlaylists = allPlaylists.filter(p => p.id !== playlistId);
-            
-            // If deleted playlist was selected, select first one or show empty state
-            if (currentPlaylistId === playlistId) {
-                if (allPlaylists.length > 0) {
-                    selectPlaylist(allPlaylists[0].id);
-                } else {
-                    showEmptyState();
-                }
-            } else {
-                displayPlaylistsSidebar();
-            }
+    allPlaylists = allPlaylists.filter(p => p.id !== playlistId);
+    savePlaylists(allPlaylists);
+    
+    // If deleted playlist was selected, select first one or show empty state
+    if (currentPlaylistId === playlistId) {
+        if (allPlaylists.length > 0) {
+            selectPlaylist(allPlaylists[0].id);
+        } else {
+            showEmptyState();
         }
-    } catch (error) {
-        console.error('Delete playlist error:', error);
-        alert('שגיאה במחיקת הפלייליסט');
+    } else {
+        displayPlaylistsSidebar();
     }
 }
 
@@ -395,7 +369,7 @@ window.openNewPlaylistModal = function() {
 };
 
 // Create new playlist
-async function createNewPlaylist() {
+function createNewPlaylist() {
     const nameInput = document.getElementById('newPlaylistNameInput');
     if (!nameInput) {
         console.error('newPlaylistNameInput not found');
@@ -411,55 +385,39 @@ async function createNewPlaylist() {
     
     console.log('Creating playlist:', name);
     
-    try {
-        const response = await fetch(`${API_BASE_URL}/playlists`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            credentials: 'include',
-            body: JSON.stringify({ name })
-        });
-
-        console.log('Create playlist response status:', response.status);
-
-        if (response.ok) {
-            const newPlaylist = await response.json();
-            console.log('New playlist created:', newPlaylist);
-            allPlaylists.push(newPlaylist);
-            
-            // Refresh sidebar
-            displayPlaylistsSidebar();
-            
-            // Close modal
-            const modalElement = document.getElementById('newPlaylistModal');
-            if (modalElement) {
-                const modal = bootstrap.Modal.getInstance(modalElement);
-                if (modal) {
-                    modal.hide();
-                }
-            }
-            
-            // Select new playlist
-            selectPlaylist(newPlaylist.id);
-        } else {
-            const error = await response.json();
-            console.error('Create playlist error:', response.status, error);
-            if (response.status === 401) {
-                alert('אנא התחבר תחילה');
-                window.location.href = 'login.html';
-            } else {
-                alert('שגיאה ביצירת הפלייליסט: ' + (error.error || 'שגיאה לא ידועה'));
-            }
-        }
-    } catch (error) {
-        console.error('Create playlist error:', error);
-        alert('שגיאה בחיבור לשרת. ודא שהשרת רץ על http://localhost:3000');
+    const userId = getCurrentUserId();
+    if (!userId) {
+        alert('אנא התחבר תחילה');
+        window.location.href = 'login.html';
+        return;
     }
+    
+    const newPlaylist = {
+        id: Date.now(),
+        userId: userId,
+        name: name.trim(),
+        createdDate: new Date().toISOString(),
+        videos: []
+    };
+    
+    allPlaylists.push(newPlaylist);
+    savePlaylists(allPlaylists);
+    
+    // Refresh sidebar
+    displayPlaylistsSidebar();
+    
+    // Close modal
+    const modalElement = document.getElementById('newPlaylistModal');
+    if (modalElement) {
+        const modal = bootstrap.Modal.getInstance(modalElement);
+        if (modal) {
+            modal.hide();
+        }
+    }
+    
+    // Select new playlist
+    selectPlaylist(newPlaylist.id);
 }
-
-// Make createNewPlaylist available immediately
-window.createNewPlaylist = createNewPlaylist;
 
 // Make createNewPlaylist available immediately
 window.createNewPlaylist = createNewPlaylist;
@@ -477,7 +435,7 @@ function openUploadMp3Modal() {
 }
 
 // Upload MP3 file
-async function uploadMp3() {
+function uploadMp3() {
     const title = document.getElementById('mp3Title').value.trim();
     const artist = document.getElementById('mp3Artist').value.trim();
     const fileInput = document.getElementById('mp3File');
@@ -493,65 +451,50 @@ async function uploadMp3() {
         return;
     }
 
-    try {
-        // Upload file
-        const formData = new FormData();
-        formData.append('mp3', file);
-
-        const uploadResponse = await fetch(`${API_BASE_URL}/upload-mp3`, {
-            method: 'POST',
-            credentials: 'include',
-            body: formData
-        });
-
-        if (!uploadResponse.ok) {
-            const error = await uploadResponse.json();
-            alert('שגיאה בהעלאת הקובץ: ' + (error.error || 'שגיאה לא ידועה'));
-            return;
-        }
-
-        const uploadResult = await uploadResponse.json();
-
+    // Convert file to base64 data URL
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        const mp3DataUrl = e.target.result;
+        
         // Add to playlist as video-like object
         const mp3Video = {
             id: `mp3_${Date.now()}`,
             title: title,
             channelTitle: artist,
             thumbnail: 'https://via.placeholder.com/320x180/667eea/ffffff?text=MP3',
-            mp3Url: uploadResult.url,
+            mp3Url: mp3DataUrl,
             isMp3: true
         };
 
-        const addResponse = await fetch(`${API_BASE_URL}/playlists/${currentPlaylistId}/videos`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            credentials: 'include',
-            body: JSON.stringify({
-                video: mp3Video
-            })
-        });
-
-        if (addResponse.ok) {
-            const playlist = await addResponse.json();
-            allPlaylists = allPlaylists.map(p => p.id === playlist.id ? playlist : p);
-            currentVideos = playlist.videos || [];
+        const playlist = getPlaylistById(currentPlaylistId);
+        if (playlist) {
+            if (!playlist.videos) {
+                playlist.videos = [];
+            }
+            playlist.videos.push({
+                ...mp3Video,
+                addedDate: new Date().toISOString()
+            });
+            
+            savePlaylist(playlist);
+            currentVideos = playlist.videos;
             displayVideos(currentVideos);
 
             // Close modal
             const modal = bootstrap.Modal.getInstance(document.getElementById('uploadMp3Modal'));
-            modal.hide();
+            if (modal) {
+                modal.hide();
+            }
 
             alert('הקובץ הועלה בהצלחה והוסף לפלייליסט');
-        } else {
-            const error = await addResponse.json();
-            alert('שגיאה בהוספה לפלייליסט: ' + (error.error || 'שגיאה לא ידועה'));
         }
-    } catch (error) {
-        console.error('Upload MP3 error:', error);
-        alert('שגיאה בחיבור לשרת');
-    }
+    };
+    
+    reader.onerror = function() {
+        alert('שגיאה בקריאת הקובץ');
+    };
+    
+    reader.readAsDataURL(file);
 }
 
 // Make functions globally available
@@ -568,9 +511,9 @@ window.openUploadMp3Modal = openUploadMp3Modal;
 window.uploadMp3 = uploadMp3;
 
 // Initialize page when DOM is ready
-document.addEventListener('DOMContentLoaded', async function() {
+document.addEventListener('DOMContentLoaded', function() {
     console.log('DOMContentLoaded - initializing playlists page');
-    await initPage();
+    initPage();
     
     // Search input listener
     const searchInput = document.getElementById('searchInput');
@@ -578,4 +521,3 @@ document.addEventListener('DOMContentLoaded', async function() {
         searchInput.addEventListener('input', searchVideos);
     }
 });
-

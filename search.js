@@ -23,35 +23,47 @@ function getCurrentUserId() {
     return null;
 }
 
-// API_BASE_URL is defined in user-header.js
+// Get playlists from localStorage for current user
+function getPlaylists() {
+    const userId = getCurrentUserId();
+    if (!userId) return [];
+    
+    const playlistsData = localStorage.getItem(PLAYLISTS_STORAGE_KEY);
+    if (!playlistsData) return [];
+    
+    const allPlaylists = JSON.parse(playlistsData);
+    return allPlaylists.filter(p => p.userId === userId) || [];
+}
 
-// Get playlists from API for current user
-async function getPlaylists() {
-    try {
-        const response = await fetch(`${API_BASE_URL}/playlists`, {
-            credentials: 'include'
-        });
-
-        if (response.ok) {
-            return await response.json();
-        }
-    } catch (error) {
-        console.error('Get playlists error:', error);
-    }
-    return [];
+// Save playlists to localStorage
+function savePlaylists(playlists) {
+    const userId = getCurrentUserId();
+    if (!userId) return;
+    
+    // Get all playlists from storage
+    const allPlaylistsData = localStorage.getItem(PLAYLISTS_STORAGE_KEY);
+    let allPlaylists = allPlaylistsData ? JSON.parse(allPlaylistsData) : [];
+    
+    // Remove old playlists for this user
+    allPlaylists = allPlaylists.filter(p => p.userId !== userId);
+    
+    // Add updated playlists
+    allPlaylists = allPlaylists.concat(playlists);
+    
+    localStorage.setItem(PLAYLISTS_STORAGE_KEY, JSON.stringify(allPlaylists));
 }
 
 // Check if video is in any playlist
-async function isVideoInPlaylist(videoId) {
-    const playlists = await getPlaylists();
+function isVideoInPlaylist(videoId) {
+    const playlists = getPlaylists();
     return playlists.some(playlist => 
         playlist.videos && playlist.videos.some(v => v.id === videoId)
     );
 }
 
 // Get playlist name that contains the video
-async function getPlaylistNameForVideo(videoId) {
-    const playlists = await getPlaylists();
+function getPlaylistNameForVideo(videoId) {
+    const playlists = getPlaylists();
     const playlist = playlists.find(p => 
         p.videos && p.videos.some(v => v.id === videoId)
     );
@@ -262,7 +274,7 @@ async function displayResults(videos, videoDetails) {
     resultsContainer.innerHTML = '';
 
     // Get all playlists once
-    const playlists = await getPlaylists();
+    const playlists = getPlaylists();
 
     videos.forEach((video, index) => {
         const details = videoDetails[index];
@@ -324,7 +336,7 @@ function playVideo(videoId, title) {
 }
 
 // Open add to playlist modal
-async function openAddToPlaylistModal(videoId, title, thumbnail, channelTitle) {
+function openAddToPlaylistModal(videoId, title, thumbnail, channelTitle) {
     currentVideoToAdd = {
         id: videoId,
         title: title,
@@ -333,7 +345,7 @@ async function openAddToPlaylistModal(videoId, title, thumbnail, channelTitle) {
     };
     
     // Populate playlists dropdown
-    const playlists = await getPlaylists();
+    const playlists = getPlaylists();
     const select = document.getElementById('playlistSelect');
     select.innerHTML = '<option value="">-- בחר פלייליסט --</option>';
     
@@ -353,7 +365,7 @@ async function openAddToPlaylistModal(videoId, title, thumbnail, channelTitle) {
 }
 
 // Confirm add to playlist
-async function confirmAddToPlaylist() {
+function confirmAddToPlaylist() {
     if (!currentVideoToAdd) return;
     
     const selectedPlaylistId = document.getElementById('playlistSelect').value;
@@ -367,85 +379,67 @@ async function confirmAddToPlaylist() {
     let playlistName = '';
     let playlistId = null;
     
-    try {
-        if (selectedPlaylistId) {
-            // Add to existing playlist
-            const response = await fetch(`${API_BASE_URL}/playlists/${selectedPlaylistId}/videos`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                credentials: 'include',
-                body: JSON.stringify({
-                    video: currentVideoToAdd
-                })
-            });
-
-            if (response.ok) {
-                const playlist = await response.json();
+    const playlists = getPlaylists();
+    const userId = getCurrentUserId();
+    
+    if (!userId) {
+        alert('אנא התחבר תחילה');
+        window.location.href = 'login.html';
+        return;
+    }
+    
+    if (selectedPlaylistId) {
+        // Add to existing playlist
+        const playlist = playlists.find(p => p.id == selectedPlaylistId);
+        if (playlist) {
+            if (!playlist.videos) {
+                playlist.videos = [];
+            }
+            if (!playlist.videos.some(v => v.id === currentVideoToAdd.id)) {
+                playlist.videos.push({
+                    ...currentVideoToAdd,
+                    addedDate: new Date().toISOString()
+                });
                 playlistName = playlist.name;
                 playlistId = playlist.id;
-            } else {
-                alert('שגיאה בהוספת הסרטון לפלייליסט');
-                return;
-            }
-        } else if (newPlaylistName) {
-            // Create new playlist
-            const createResponse = await fetch(`${API_BASE_URL}/playlists`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                credentials: 'include',
-                body: JSON.stringify({ name: newPlaylistName })
-            });
-
-            if (createResponse.ok) {
-                const newPlaylist = await createResponse.json();
-                playlistId = newPlaylist.id;
-                playlistName = newPlaylistName;
-
-                // Add video to new playlist
-                const addResponse = await fetch(`${API_BASE_URL}/playlists/${playlistId}/videos`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    credentials: 'include',
-                    body: JSON.stringify({
-                        video: currentVideoToAdd
-                    })
-                });
-
-                if (!addResponse.ok) {
-                    alert('הפלייליסט נוצר אך הייתה שגיאה בהוספת הסרטון');
-                }
-            } else {
-                const error = await createResponse.json();
-                alert('שגיאה ביצירת הפלייליסט: ' + (error.error || 'שגיאה לא ידועה'));
-                return;
             }
         }
+    } else if (newPlaylistName) {
+        // Create new playlist
+        const newPlaylist = {
+            id: Date.now(),
+            userId: userId,
+            name: newPlaylistName,
+            createdDate: new Date().toISOString(),
+            videos: [{
+                ...currentVideoToAdd,
+                addedDate: new Date().toISOString()
+            }]
+        };
         
-        // Close modal
-        const modal = bootstrap.Modal.getInstance(document.getElementById('playlistModal'));
-        if (modal) {
-            modal.hide();
-        }
-        
-        // Show toast notification with link to playlists page
-        if (playlistName && playlistId) {
-            showToast(`הסרטון נוסף בהצלחה לפלייליסט "${playlistName}"`, playlistName, playlistId);
-        }
-        
-        // Refresh results to update UI
-        const query = searchInput.value.trim();
-        if (query) {
-            searchVideos(query);
-        }
-    } catch (error) {
-        console.error('Add to playlist error:', error);
-        alert('שגיאה בחיבור לשרת');
+        playlists.push(newPlaylist);
+        playlistId = newPlaylist.id;
+        playlistName = newPlaylistName;
+    }
+    
+    // Save playlists
+    savePlaylists(playlists);
+    
+    // Close modal
+    const modal = bootstrap.Modal.getInstance(document.getElementById('playlistModal'));
+    if (modal) {
+        modal.hide();
+    }
+    
+    // Show toast notification with link to playlists page
+    if (playlistName && playlistId) {
+        showToast(`הסרטון נוסף בהצלחה לפלייליסט "${playlistName}"`, playlistName, playlistId);
+    }
+    
+    // Refresh results to update UI
+    const query = searchInput.value.trim();
+    if (query) {
+        searchVideos(query);
     }
 }
 
