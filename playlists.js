@@ -54,11 +54,25 @@ function initPage() {
     
     displayPlaylistsSidebar();
     
+    const playlists = getPlaylists();
+    
     if (playlistIdParam) {
-        selectPlaylist(parseInt(playlistIdParam));
+        const playlistId = parseInt(playlistIdParam);
+        const playlist = getPlaylistById(playlistId);
+        
+        // If playlist exists, select it; otherwise fall back to first playlist
+        if (playlist) {
+            selectPlaylist(playlistId);
+        } else {
+            // Playlist not found, load first playlist by default
+            if (playlists.length > 0) {
+                selectPlaylist(playlists[0].id);
+            } else {
+                showEmptyState();
+            }
+        }
     } else {
-        // Load first playlist by default
-        const playlists = getPlaylists();
+        // No ID in URL, load first playlist by default
         if (playlists.length > 0) {
             selectPlaylist(playlists[0].id);
         } else {

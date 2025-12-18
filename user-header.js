@@ -67,6 +67,9 @@ function displayUserHeader() {
             <button id="themeToggleBtn" onclick="toggleTheme()" class="btn btn-light btn-sm" title="עבור למצב לילה">
                 <i class="fas fa-moon"></i> לילה
             </button>
+            <a href="search.html" class="btn btn-light btn-sm">
+                <i class="fas fa-search"></i> חיפוש
+            </a>
             <a href="playlists.html" class="btn btn-light btn-sm">
                 <i class="fas fa-music"></i> הפלייליסטים שלי
             </a>

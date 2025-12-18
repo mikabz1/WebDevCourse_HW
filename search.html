@@ -243,16 +243,22 @@
 
     <!-- Toast Notification -->
     <div class="toast-container">
-        <div id="toastNotification" class="toast" role="alert" aria-live="assertive" aria-atomic="true" style="display: none;">
+        <div id="toastNotification" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
             <div class="toast-header">
                 <i class="fas fa-check-circle text-success me-2"></i>
-                <strong class="me-auto">הצלחה</strong>
+                <strong class="me-auto">הסרטון נשמר בהצלחה!</strong>
                 <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
             </div>
             <div class="toast-body">
-                <span id="toastMessage"></span>
-                <div class="mt-2">
-                    <a href="playlist.html" class="btn btn-sm btn-primary" id="toastLink">עבור לפלייליסט</a>
+                <div class="mb-2">
+                    <i class="fas fa-music text-primary me-2"></i>
+                    <span id="toastMessage"></span>
+                </div>
+                <div class="mt-3">
+                    <a href="playlists.html" class="btn btn-sm btn-primary w-100" id="toastLink">
+                        <i class="fas fa-arrow-left me-2"></i>
+                        <span id="toastLinkText">עבור לפלייליסט</span>
+                    </a>
                 </div>
             </div>
         </div>

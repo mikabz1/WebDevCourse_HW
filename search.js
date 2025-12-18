@@ -126,6 +126,36 @@ async function getVideoDetails(videoId) {
     return { duration: null, viewCount: 0 };
 }
 
+// Save search state to sessionStorage
+function saveSearchState(query, videos, videoDetails) {
+    const searchState = {
+        query: query,
+        videos: videos,
+        videoDetails: videoDetails,
+        timestamp: Date.now()
+    };
+    sessionStorage.setItem('searchState', JSON.stringify(searchState));
+}
+
+// Load search state from sessionStorage
+function loadSearchState() {
+    const savedState = sessionStorage.getItem('searchState');
+    if (savedState) {
+        try {
+            return JSON.parse(savedState);
+        } catch (error) {
+            console.error('Error loading search state:', error);
+            return null;
+        }
+    }
+    return null;
+}
+
+// Clear search state from sessionStorage
+function clearSearchState() {
+    sessionStorage.removeItem('searchState');
+}
+
 // Search YouTube videos
 async function searchVideos(query) {
     try {
@@ -199,6 +229,9 @@ async function searchVideos(query) {
             getVideoDetails(video.id.videoId)
         );
         const videoDetails = await Promise.all(videoDetailsPromises);
+
+        // Save search state
+        saveSearchState(query, data.items, videoDetails);
 
         // Display results
         displayResults(data.items, videoDetails);
@@ -362,10 +395,14 @@ function confirmAddToPlaylist() {
     
     // Close modal
     const modal = bootstrap.Modal.getInstance(document.getElementById('playlistModal'));
-    modal.hide();
+    if (modal) {
+        modal.hide();
+    }
     
     // Show toast notification with link to playlists page
-    showToast(`הסרטון נוסף בהצלחה לפלייליסט "${playlistName}"`, playlistName, playlistId);
+    if (playlistName && playlistId) {
+        showToast(`הסרטון נוסף בהצלחה לפלייליסט "${playlistName}"`, playlistName, playlistId);
+    }
     
     // Refresh results to update UI
     const query = searchInput.value.trim();
@@ -379,17 +416,60 @@ function showToast(message, playlistName, playlistId) {
     const toastElement = document.getElementById('toastNotification');
     const toastMessage = document.getElementById('toastMessage');
     const toastLink = document.getElementById('toastLink');
+    const toastLinkText = document.getElementById('toastLinkText');
     
-    toastMessage.textContent = message;
-    toastLink.textContent = `עבור לפלייליסט "${playlistName}"`;
-    if (playlistId) {
-        toastLink.href = `playlists.html?id=${playlistId}`;
-    } else {
-        toastLink.href = 'playlists.html';
+    if (!toastElement || !toastMessage || !toastLink || !toastLinkText) {
+        console.error('Toast elements not found');
+        // Fallback to alert if toast elements are missing
+        const linkText = playlistId ? `\n\nלחץ כאן לעבור לפלייליסט: playlists.html?id=${playlistId}` : '';
+        alert(message + linkText);
+        return;
     }
     
-    const toast = new bootstrap.Toast(toastElement);
-    toast.show();
+    // Update message
+    toastMessage.textContent = message;
+    
+    // Update link
+    if (playlistId) {
+        toastLink.href = `playlists.html?id=${playlistId}`;
+        toastLinkText.textContent = `עבור לפלייליסט "${playlistName}"`;
+    } else {
+        toastLink.href = 'playlists.html';
+        toastLinkText.textContent = 'עבור לפלייליסטים';
+    }
+    
+    // Hide any existing toast instance first
+    const existingToast = bootstrap.Toast.getInstance(toastElement);
+    if (existingToast) {
+        existingToast.dispose();
+    }
+    
+    // Create and show new toast
+    try {
+        const toast = new bootstrap.Toast(toastElement, {
+            delay: 5000,
+            autohide: true
+        });
+        
+        toast.show();
+    } catch (error) {
+        console.error('Error showing toast:', error);
+        // Fallback to alert if toast fails
+        const linkText = playlistId ? `\n\nלחץ כאן לעבור לפלייליסט: playlists.html?id=${playlistId}` : '';
+        alert(message + linkText);
+    }
+}
+
+// Restore search state on page load
+function restoreSearchState() {
+    const savedState = loadSearchState();
+    if (savedState && savedState.query && savedState.videos && savedState.videoDetails) {
+        // Restore query in input field
+        searchInput.value = savedState.query;
+        
+        // Restore results display
+        displayResults(savedState.videos, savedState.videoDetails);
+    }
 }
 
 // Form submission
@@ -400,6 +480,11 @@ searchForm.addEventListener('submit', function(e) {
     if (query) {
         searchVideos(query);
     }
+});
+
+// Restore search state when page loads
+document.addEventListener('DOMContentLoaded', function() {
+    restoreSearchState();
 });
 
 // Make functions globally available
