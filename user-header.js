@@ -1,21 +1,43 @@
 
 // This file should be included in all pages to display user info in header
+const API_BASE_URL = 'http://localhost:3000/api';
 const SESSION_KEY = 'currentUser';
 
-// Get current user from sessionStorage
-function getCurrentUser() {
+// Get current user from sessionStorage or API
+async function getCurrentUser() {
+    // First check sessionStorage
     const userData = sessionStorage.getItem(SESSION_KEY);
-    return userData ? JSON.parse(userData) : null;
+    if (userData) {
+        return JSON.parse(userData);
+    }
+
+    // If not in sessionStorage, try to get from API
+    try {
+        const response = await fetch(`${API_BASE_URL}/me`, {
+            credentials: 'include'
+        });
+
+        if (response.ok) {
+            const user = await response.json();
+            sessionStorage.setItem(SESSION_KEY, JSON.stringify(user));
+            return user;
+        }
+    } catch (error) {
+        console.error('Get current user error:', error);
+    }
+
+    return null;
 }
 
 // Check if user is logged in
-function isUserLoggedIn() {
-    return getCurrentUser() !== null;
+async function isUserLoggedIn() {
+    const user = await getCurrentUser();
+    return user !== null;
 }
 
 // Display user info in header
-function displayUserHeader() {
-    const user = getCurrentUser();
+async function displayUserHeader() {
+    const user = await getCurrentUser();
     
     if (!user) {
         return;
@@ -89,15 +111,24 @@ function displayUserHeader() {
 }
 
 // Logout function
-function logout() {
+async function logout() {
     if (confirm('האם אתה בטוח שברצונך להתנתק?')) {
+        try {
+            await fetch(`${API_BASE_URL}/logout`, {
+                method: 'POST',
+                credentials: 'include'
+            });
+        } catch (error) {
+            console.error('Logout error:', error);
+        }
+        
         sessionStorage.removeItem(SESSION_KEY);
         window.location.href = 'login.html';
     }
 }
 
 // Check if user should be redirected to login
-function checkAuthAndRedirect() {
+async function checkAuthAndRedirect() {
     // Get current page name
     const currentPage = window.location.pathname.split('/').pop();
     
@@ -105,7 +136,8 @@ function checkAuthAndRedirect() {
     const publicPages = ['login.html', 'register.html', 'index.html'];
     
     // If current page requires auth and user is not logged in, redirect to login
-    if (!publicPages.includes(currentPage) && !isUserLoggedIn()) {
+    const loggedIn = await isUserLoggedIn();
+    if (!publicPages.includes(currentPage) && !loggedIn) {
         window.location.href = 'login.html';
         return false;
     }
@@ -114,17 +146,17 @@ function checkAuthAndRedirect() {
 }
 
 // Initialize header when page loads
-document.addEventListener('DOMContentLoaded', function() {
-    if (checkAuthAndRedirect()) {
-        displayUserHeader();
+document.addEventListener('DOMContentLoaded', async function() {
+    if (await checkAuthAndRedirect()) {
+        await displayUserHeader();
     }
 });
 
 // Also check on pageshow event to handle back navigation
-window.addEventListener('pageshow', function(event) {
+window.addEventListener('pageshow', async function(event) {
     // If page was loaded from cache (back navigation), refresh header
     if (event.persisted) {
-        displayUserHeader();
+        await displayUserHeader();
     }
 });
 

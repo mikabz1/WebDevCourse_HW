@@ -250,6 +250,9 @@
                             <button class="btn btn-outline-secondary" onclick="sortVideos('rating')">
                                 <i class="fas fa-star"></i> דירוג
                             </button>
+                            <button class="btn btn-outline-primary" onclick="openUploadMp3Modal()">
+                                <i class="fas fa-upload"></i> העלה MP3
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -290,6 +293,39 @@
                 </div>
                 <div class="modal-body">
                     <div id="videoPlayerContainer"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Upload MP3 Modal -->
+    <div class="modal fade" id="uploadMp3Modal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">העלה קובץ MP3</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="uploadMp3Form">
+                        <div class="mb-3">
+                            <label for="mp3Title" class="form-label">שם השיר:</label>
+                            <input type="text" class="form-control" id="mp3Title" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="mp3Artist" class="form-label">אמן:</label>
+                            <input type="text" class="form-control" id="mp3Artist" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="mp3File" class="form-label">קובץ MP3:</label>
+                            <input type="file" class="form-control" id="mp3File" accept="audio/mpeg,audio/mp3" required>
+                            <div class="form-text">רק קבצי MP3, עד 10MB</div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">ביטול</button>
+                    <button type="button" class="btn btn-primary" onclick="uploadMp3()">העלה</button>
                 </div>
             </div>
         </div>
