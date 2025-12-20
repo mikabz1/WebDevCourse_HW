@@ -287,38 +287,71 @@ async function displayResults(videos, videoDetails) {
 
         const card = document.createElement('div');
         card.className = 'video-card';
+        
+        // Escape HTML to prevent XSS and syntax errors
+        const escapeHtml = (text) => {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        };
+        
+        const safeTitle = escapeHtml(video.snippet.title);
+        const safeChannelTitle = escapeHtml(video.snippet.channelTitle);
+        const safeThumbnail = escapeHtml(video.snippet.thumbnails.medium.url);
+        
         card.innerHTML = `
             <div class="thumbnail-container">
                 ${isInPlaylist ? '<div class="in-playlist-icon" title="נמצא בפלייליסט"><i class="fas fa-check"></i></div>' : ''}
-                <img src="${video.snippet.thumbnails.medium.url}" 
-                     alt="${video.snippet.title}"
+                <img src="${safeThumbnail}" 
+                     alt="${safeTitle}"
                      class="video-thumbnail"
-                     onclick="playVideo('${videoId}', '${video.snippet.title.replace(/'/g, "\\'")}')">
+                     style="cursor: pointer;">
                 <span class="duration-badge">${duration}</span>
             </div>
             <div class="video-info">
                 <div class="video-title" 
-                     title="${video.snippet.title}"
-                     onclick="playVideo('${videoId}', '${video.snippet.title.replace(/'/g, "\\'")}')">
-                    ${video.snippet.title}
+                     title="${safeTitle}"
+                     style="cursor: pointer;">
+                    ${safeTitle}
                 </div>
                 <div class="video-details">
                     <span><i class="fas fa-eye"></i> ${viewCount}</span>
-                    <span><i class="fas fa-user"></i> ${video.snippet.channelTitle}</span>
+                    <span><i class="fas fa-user"></i> ${safeChannelTitle}</span>
                 </div>
                 <div class="video-actions">
-                    <button class="btn btn-primary btn-sm btn-action" 
-                            onclick="playVideo('${videoId}', '${video.snippet.title.replace(/'/g, "\\'")}')">
+                    <button class="btn btn-primary btn-sm btn-action play-video-btn">
                         <i class="fas fa-play"></i> נגן
                     </button>
-                    <button class="btn ${isInPlaylist ? 'btn-secondary' : 'btn-outline-warning'} btn-sm btn-action" 
-                            onclick="openAddToPlaylistModal('${videoId}', '${video.snippet.title.replace(/'/g, "\\'")}', '${video.snippet.thumbnails.medium.url.replace(/'/g, "\\'")}', '${video.snippet.channelTitle.replace(/'/g, "\\'")}')"
+                    <button class="btn ${isInPlaylist ? 'btn-secondary' : 'btn-outline-warning'} btn-sm btn-action add-to-playlist-btn"
                             ${isInPlaylist ? 'disabled' : ''}>
                         <i class="fas fa-plus"></i> ${isInPlaylist ? 'בפלייליסט' : 'הוסף לפלייליסט'}
                     </button>
                 </div>
             </div>
         `;
+        
+        // Add event listeners instead of inline onclick
+        const thumbnail = card.querySelector('.video-thumbnail');
+        const titleElement = card.querySelector('.video-title');
+        const playBtn = card.querySelector('.play-video-btn');
+        const addBtn = card.querySelector('.add-to-playlist-btn');
+        
+        const playHandler = () => playVideo(videoId, video.snippet.title);
+        const addHandler = () => openAddToPlaylistModal(
+            videoId, 
+            video.snippet.title, 
+            video.snippet.thumbnails.medium.url, 
+            video.snippet.channelTitle
+        );
+        
+        thumbnail.addEventListener('click', playHandler);
+        titleElement.addEventListener('click', playHandler);
+        playBtn.addEventListener('click', playHandler);
+        
+        if (!isInPlaylist) {
+            addBtn.addEventListener('click', addHandler);
+        }
+        
         resultsContainer.appendChild(card);
     });
 }
