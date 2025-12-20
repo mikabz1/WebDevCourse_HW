@@ -189,19 +189,31 @@ function displayVideos(videos) {
         const row = document.createElement('div');
         row.className = 'video-row';
         const isMp3 = video.isMp3 || false;
-        const playOnClick = isMp3 
-            ? `playVideo('${video.id}', '${video.title.replace(/'/g, "\\'")}', true, '${video.mp3Url || ''}')`
-            : `playVideo('${video.id}', '${video.title.replace(/'/g, "\\'")}')`;
+        
+        // Escape special characters for safe HTML insertion
+        const safeTitle = video.title.replace(/'/g, "&#39;").replace(/"/g, "&quot;");
+        const safeId = String(video.id).replace(/'/g, "&#39;");
+        const safeMp3Url = (video.mp3Url || '').replace(/'/g, "&#39;").replace(/"/g, "&quot;");
+        
+        // Create click handler function
+        const playHandler = () => {
+            if (isMp3 && video.mp3Url) {
+                playVideo(video.id, video.title, true, video.mp3Url);
+            } else {
+                playVideo(video.id, video.title);
+            }
+        };
+        
         row.innerHTML = `
             <img src="${video.thumbnail}" 
-                 alt="${video.title}" 
+                 alt="${safeTitle}" 
                  class="video-thumbnail"
-                 onclick="${playOnClick}">
+                 style="cursor: pointer;">
             <div class="video-info">
-                <div class="video-title" onclick="${playOnClick}">
-                    ${isMp3 ? '<i class="fas fa-music me-2"></i>' : ''}${video.title}
+                <div class="video-title" style="cursor: pointer;">
+                    ${isMp3 ? '<i class="fas fa-music me-2"></i>' : ''}${safeTitle}
                 </div>
-                <div class="video-channel">${video.channelTitle}</div>
+                <div class="video-channel">${video.channelTitle || ''}</div>
             </div>
             <div class="video-rating">
                 <label class="form-label mb-0">דירוג:</label>
@@ -219,6 +231,14 @@ function displayVideos(videos) {
                 </button>
             </div>
         `;
+        
+        // Add event listeners instead of inline onclick
+        const thumbnail = row.querySelector('.video-thumbnail');
+        const titleElement = row.querySelector('.video-title');
+        
+        thumbnail.addEventListener('click', playHandler);
+        titleElement.addEventListener('click', playHandler);
+        
         container.appendChild(row);
     });
 }
@@ -322,25 +342,47 @@ function searchVideos() {
 
 // Play video or MP3
 function playVideo(videoId, title, isMp3, mp3Url) {
-    const modal = new bootstrap.Modal(document.getElementById('videoModal'));
-    
-    document.getElementById('videoModalTitle').textContent = title || 'נגן מדיה';
-    
-    if (isMp3 && mp3Url) {
-        // Play MP3
-        document.getElementById('videoPlayerContainer').innerHTML = 
-            `<audio controls style="width: 100%;">
-                <source src="${mp3Url}" type="audio/mpeg">
-                הדפדפן שלך לא תומך בנגן אודיו.
-            </audio>`;
-    } else {
-        // Play YouTube video
-        const embedUrl = `https://www.youtube.com/embed/${videoId}`;
-        document.getElementById('videoPlayerContainer').innerHTML = 
-            `<iframe src="${embedUrl}" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen style="width: 100%; height: 400px;"></iframe>`;
+    try {
+        const modalElement = document.getElementById('videoModal');
+        if (!modalElement) {
+            console.error('Video modal not found');
+            alert('שגיאה: לא נמצא נגן מדיה');
+            return;
+        }
+        
+        const modal = new bootstrap.Modal(modalElement);
+        
+        const titleElement = document.getElementById('videoModalTitle');
+        if (titleElement) {
+            titleElement.textContent = title || 'נגן מדיה';
+        }
+        
+        const containerElement = document.getElementById('videoPlayerContainer');
+        if (!containerElement) {
+            console.error('Video player container not found');
+            alert('שגיאה: לא נמצא מיכל נגן');
+            return;
+        }
+        
+        if (isMp3 && mp3Url) {
+            // Play MP3
+            containerElement.innerHTML = 
+                `<audio controls style="width: 100%;">
+                    <source src="${mp3Url}" type="audio/mpeg">
+                    הדפדפן שלך לא תומך בנגן אודיו.
+                </audio>`;
+        } else {
+            // Play YouTube video
+            const embedUrl = `https://www.youtube.com/embed/${videoId}`;
+            containerElement.innerHTML = 
+                `<iframe src="${embedUrl}" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen style="width: 100%; height: 400px;"></iframe>`;
+        }
+        
+        modal.show();
+    } catch (error) {
+        console.error('Error playing video:', error);
+        alert('שגיאה בפתיחת הנגן: ' + error.message);
     }
-    
-    modal.show();
 }
 
 // Play entire playlist
@@ -497,7 +539,7 @@ function uploadMp3() {
     reader.readAsDataURL(file);
 }
 
-// Make functions globally available
+// Make functions globally available immediately
 window.selectPlaylist = selectPlaylist;
 window.deleteVideo = deleteVideo;
 window.deletePlaylist = deletePlaylist;
