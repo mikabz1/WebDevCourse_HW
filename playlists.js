@@ -464,81 +464,6 @@ function createNewPlaylist() {
 // Make createNewPlaylist available immediately
 window.createNewPlaylist = createNewPlaylist;
 
-// Open upload MP3 modal
-function openUploadMp3Modal() {
-    if (!currentPlaylistId) {
-        alert('אנא בחר פלייליסט תחילה');
-        return;
-    }
-    
-    document.getElementById('uploadMp3Form').reset();
-    const modal = new bootstrap.Modal(document.getElementById('uploadMp3Modal'));
-    modal.show();
-}
-
-// Upload MP3 file
-function uploadMp3() {
-    const title = document.getElementById('mp3Title').value.trim();
-    const artist = document.getElementById('mp3Artist').value.trim();
-    const fileInput = document.getElementById('mp3File');
-    const file = fileInput.files[0];
-
-    if (!title || !artist || !file) {
-        alert('אנא מלא את כל השדות');
-        return;
-    }
-
-    if (!currentPlaylistId) {
-        alert('אנא בחר פלייליסט תחילה');
-        return;
-    }
-
-    // Convert file to base64 data URL
-    const reader = new FileReader();
-    reader.onload = function(e) {
-        const mp3DataUrl = e.target.result;
-        
-        // Add to playlist as video-like object
-        const mp3Video = {
-            id: `mp3_${Date.now()}`,
-            title: title,
-            channelTitle: artist,
-            thumbnail: 'https://via.placeholder.com/320x180/667eea/ffffff?text=MP3',
-            mp3Url: mp3DataUrl,
-            isMp3: true
-        };
-
-        const playlist = getPlaylistById(currentPlaylistId);
-        if (playlist) {
-            if (!playlist.videos) {
-                playlist.videos = [];
-            }
-            playlist.videos.push({
-                ...mp3Video,
-                addedDate: new Date().toISOString()
-            });
-            
-            savePlaylist(playlist);
-            currentVideos = playlist.videos;
-            displayVideos(currentVideos);
-
-            // Close modal
-            const modal = bootstrap.Modal.getInstance(document.getElementById('uploadMp3Modal'));
-            if (modal) {
-                modal.hide();
-            }
-
-            alert('הקובץ הועלה בהצלחה והוסף לפלייליסט');
-        }
-    };
-    
-    reader.onerror = function() {
-        alert('שגיאה בקריאת הקובץ');
-    };
-    
-    reader.readAsDataURL(file);
-}
-
 // Make functions globally available immediately
 window.selectPlaylist = selectPlaylist;
 window.deleteVideo = deleteVideo;
@@ -549,8 +474,6 @@ window.playVideo = playVideo;
 window.playPlaylist = playPlaylist;
 window.openNewPlaylistModal = openNewPlaylistModal;
 window.createNewPlaylist = createNewPlaylist;
-window.openUploadMp3Modal = openUploadMp3Modal;
-window.uploadMp3 = uploadMp3;
 
 // Initialize page when DOM is ready
 document.addEventListener('DOMContentLoaded', function() {
